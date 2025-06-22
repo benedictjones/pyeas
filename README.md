@@ -9,6 +9,20 @@ Current features include:
 - Three EAs (DE, OpenAI-ES, CMAES)
 - Page Trend test for convergence statistical analysis
 
+### Instillation
+
+The package is provided on [`PyPi`](https://pypi.org/project/pyeas/).
+This can be installed using pip, for example:
+```
+conda create --name eas python=3.11
+pip install pyeas
+```
+
+Or, we can install from a conda env yaml file:
+```
+conda env create --name eas --file conda_env.yml
+```
+
 ## Algorithms
 
 ### DE

@@ -3,16 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Custom
-Results
-z_test*.py
-bin
-mod_load/data/MNIST_data.hdf5
-mod_load/DataComplexity/*.pdf
-# *.png
-# *.gif
-
-
 # C extensions
 *.so
 
@@ -137,3 +127,15 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Custom
+Results
+z_test*.py
+bin
+mod_load/data/MNIST_data.hdf5
+mod_load/DataComplexity/*.pdf
+# *.png
+# *.gif
+**copy*
+**btest*
+**old*
