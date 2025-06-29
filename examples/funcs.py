@@ -10,7 +10,7 @@ import numpy as np
 
 
 
-def quadratic_order_2(
+def polynomial_order_2(
         x1:float, 
         x2:float,
     ) -> float:
@@ -26,7 +26,7 @@ def quadratic_order_2(
     """
     return (x1 + 3) + (10 * (x2 + 2)) ** 2
 
-def quadratic_order_3(
+def polynomial_order_3(
         x1:float, 
         x2:float,
         x3:float,
@@ -44,6 +44,25 @@ def quadratic_order_3(
     """
     return (x1 - 3) ** 2 + (10 * (x2 + 2)) ** 2 + (x3**3)
 
+def polynomial_order_5(
+        x:float, 
+        w:np.ndarray,
+    ) -> float:
+    """
+    Third Order Quadratic to solve
+
+    Args:
+        x1 (float): first coef
+        x2 (float): second coef
+        x3 (float): third coef
+
+    Returns:
+        float: y
+    """
+    if np.shape(w)[0] != 6:
+        raise ValueError("must have 6 coefs")
+
+    return w[0] + w[1]*x + w[2] * x**2 + w[3] * x**3 + w[4] * x**4 + w[5] * x**5
 
 def matyas(
         x1:float, 

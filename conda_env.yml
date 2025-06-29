@@ -1,14 +1,21 @@
+# conda env create --name eas --file conda_env.yml
 name: eas
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.11
+  # Core
+  - python=3.12
   - pip
+  # Required
   - numpy
   - matplotlib
   - tqdm
+  - 'scipy>=1.7'
+  # Testing
   - pytest
+  # Notebook usage
+  - ipykernel 
   - nbstripout
   # - pip:
   #   - pyeas
