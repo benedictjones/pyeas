@@ -4,7 +4,7 @@ import numpy as np
 from numpy.testing import assert_almost_equal
 from unittest import TestCase
 
-from pyeas import DE
+from pyeas._de import DE
 
 
 def quadratic(x1, x2):
@@ -17,6 +17,7 @@ class TestDE(TestCase):
     def test_runs(self):
         
         optimizer = DE(mut=[0.4],
+                       
                crossp=0.4,
                bounds=np.array([[-10,10],[-20,20]]),
                population_size=10)

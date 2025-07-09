@@ -1,8 +1,6 @@
 import numpy as np
 
-from typing import Any
-from typing import cast, Union
-from typing import Optional  # telling the type checker that either an object of the specific type is required, or None is required
+from typing import Optional, List, Union, Dict, Any, Literal
 import time
 
 from pyeas._population_scaling import PopScale
@@ -14,120 +12,8 @@ class DE:
 
     (Build into a package: https://www.youtube.com/watch?v=5KEObONUkik)
 
-    Args:
-
-        mut:
-            Mutation Factor (i.e., 'F') for selected mutation scheme.
-        
-        crossp:
-            Crossover Rate (i.e., 'CR') for binary crossover.
-
-        bounds:
-            Lower and upper domain boundaries for either
-                i) each parameter,
-                ii) each grouping of paramaters (see 'groupings' argument)
-
-        n_max_resampling:
-            A maximum number of resampling parameters (default: 100).
-            If all sampled parameters are infeasible, the last sampled one
-            will be clipped with lower and upper bounds.
-
-        population_size:
-            A population size (optional). If None, defualts to 2*number_dimensions.
-            
-        seed:
-            A seed number (optional).
-
-        pop_dim_multiple:
-            A population size modifier (optional).
-            Toggles the effect of population_size argument to scale with the number of dimensions:
-                0 --> pop = population_size
-                1 --> pop = population_size*number_dimensions
-
-        groupings:
-            An array which informs the object of the shape of a population member (optional).
-                None        --> each member is a 1d array
-                                e.g., possible member: [1.5, 0.5, 0.6, -0.9, 1.1]
-                Otherwise   --> each member contains several diffenet shaped arrays 
-                                e.g., groupings=[1,3,2] 
-                                      possible member: [ [1.5], [0.5, 0.6, -0.9], [1.1]]
-
-        mut_scheme:
-            A string which assignes the mutation scheme used (optional).
-            Schemes available: best1, best2, rand1, rand2, ttb1 (target-to-best)
-
-        constraint_handle:
-            A string which assignes the method of handeling boundary violations during mutation (optional).
-            Schemes available: clip/projection, resample, scaled, reflection 
-
-
     """
 
-    
-
-    def __init__(
-                self,
-                mut: float,
-                crossp: float,
-                bounds: np.ndarray,
-                population_size: Optional[Union[int, float]] = None,
-                seed: Optional[int] = None,
-                pop_dim_multiple: int = 0,
-                groupings: Optional[Union[np.ndarray, list]] = None,
-                mut_scheme: str = 'best1',
-                constraint_handle: str = 'reflection',
-                ):
-        
-
-        # # Make random generator object
-        self._rng = np.random.default_rng(seed)
-        self._trial_seed = self._rng.integers(10000, size=1)[0]
-
-        # # Check number of dimensions
-        if groupings is None:
-            self._n_dim = len(bounds)
-        else:
-            self._n_dim = np.sum(groupings)
-        assert self._n_dim > 1, "The dimension of mean must be larger than 1"
-        
-        # # Initialise object to normalise and denormalise the population
-        self.PopScale = PopScale(np.array(bounds), groupings)
-
-        # # Check population size
-        assert pop_dim_multiple == 0 or pop_dim_multiple == 1, "population as multiple of number of dimensions flag must be 0 or 1"
-        if population_size is None:
-            # self._popsize = 4 + math.floor(3 * math.log(self._n_dim))  # (eq. 48)  used for CMAES default allocation
-            self._popsize = 2 * self._n_dim  # just select two times the number of dimension
-        elif population_size is not None and pop_dim_multiple == 1:
-            self._popsize = population_size*self._n_dim
-        elif population_size is not None and pop_dim_multiple == 0:
-            self._popsize = population_size
-        assert self._popsize > 0, "popsize must be non-zero positive value."
-
-        # # Check other hyper-params
-        assert mut > 0, "The value of mutation factor (i.e., F) must be larger than 0"
-        assert isinstance(mut_scheme, str), "The mutation scheme (e.g., best1, rand1) must be a string"
-        assert isinstance(constraint_handle, str), "The mutation boundary handle constrain (e.g., clip, reflection) must be a string"
-        assert crossp > 0 and crossp < 1, "The value of crossover factor (i.e., CR or crossp) must be [0,1]"
-        self._mut = mut
-        self._crossp = crossp
-        self._mut_scheme = mut_scheme
-        self._constraint_handle = constraint_handle
-
-        self._toggle = 0
-        self._pop_norm = None
-        self._pop_fits = None
-        self._best_idx = None
-        self._number_evals = 0  # number of training evaluations
-
-        self.history = {}
-        self.history['best_fits'] = []
-        self.history['best_solutions'] = []
-        self.history['num_evals'] = []
-
-        return
-
-    #    
 
     # #########################################
     # # Properties: https://www.freecodecamp.org/news/python-property-decorator/ 
@@ -182,6 +68,112 @@ class DE:
         return self._number_evals
     
     #
+    
+
+    def __init__(
+        self,
+        mut: float,
+        crossp: float,
+        bounds: np.ndarray,
+        population_size: Optional[Union[int, float]] = None,
+        seed: Optional[int] = None,
+        pop_dim_multiple: int = 0,
+        groupings: Optional[Union[np.ndarray, list]] = None,
+        mut_scheme: Literal['rand1', 'best1', 'rand2', 'best2', 'ttb1'] = 'best1',
+        constraint_handle: Optional[Literal['clip', 'projection', 'resample', 'scaled', 'reflection']] = 'reflection',
+    ):
+        """
+        Initialise the DE object.
+
+        Args:
+            mut (float): 
+                Mutation Factor (i.e., 'F') for selected mutation scheme.
+            crossp (float): 
+                Crossover Rate (i.e., 'CR') for binary crossover.
+            bounds (np.ndarray): 
+                Lower and upper domain boundaries for either
+                i) each parameter,
+                ii) each grouping of paramaters (see 'groupings' argument)
+            population_size (Optional[Union[int, float]], optional): 
+                A population size (optional). If None, defualts to 2*number_dimensions. 
+                Defaults to None.
+            seed (Optional[int], optional): 
+                Random state. 
+                Defaults to None.
+            pop_dim_multiple (int, optional): 
+                A population size modifier.
+                Toggles the effect of population_size argument to scale with the number of dimensions:
+                    0 --> pop = population_size
+                    1 --> pop = population_size*number_dimensions. 
+                Defaults to 0.
+            groupings (Optional[Union[np.ndarray, list]], optional): 
+                An array which informs the object of the shape of a population member (optional).
+                None        --> each member is a 1d array
+                                e.g., possible member: [1.5, 0.5, 0.6, -0.9, 1.1]
+                Otherwise   --> each member contains several diffenet shaped arrays 
+                                e.g., groupings=[1,3,2] 
+                                      possible member: [ [1.5], [0.5, 0.6, -0.9], [1.1]] 
+                Defaults to None.
+            mut_scheme (Literal['rand1', 'best1', 'rand2', 'best2', 'ttb1'], optional): 
+                A string which assignes the mutation scheme used (optional).
+                Schemes available: best1, best2, rand1, rand2, ttb1 (target-to-best). 
+                Defaults to 'best1'.
+            constraint_handle (Optional[Literal['clip', 'projection', 'resample', 'scaled', 'reflection']], optional): 
+                A string which assignes the method of handeling boundary violations during mutation (optional).
+                Schemes available: clip/projection, resample, scaled, reflection . 
+                Defaults to 'reflection'.
+        """
+        
+
+        # # Make random generator object
+        self._rng = np.random.default_rng(seed)
+        self._trial_seed = self._rng.integers(10000, size=1)[0]
+
+        # # Check number of dimensions
+        if groupings is None:
+            self._n_dim = len(bounds)
+        else:
+            self._n_dim = np.sum(groupings)
+        assert self._n_dim > 1, "The dimension of mean must be larger than 1"
+        
+        # # Initialise object to normalise and denormalise the population
+        self.PopScale = PopScale(np.array(bounds), groupings)
+
+        # # Check population size
+        assert pop_dim_multiple == 0 or pop_dim_multiple == 1, "population as multiple of number of dimensions flag must be 0 or 1"
+        if population_size is None:
+            # self._popsize = 4 + math.floor(3 * math.log(self._n_dim))  # (eq. 48)  used for CMAES default allocation
+            self._popsize = 2 * self._n_dim  # just select two times the number of dimension
+        elif population_size is not None and pop_dim_multiple == 1:
+            self._popsize = population_size*self._n_dim
+        elif population_size is not None and pop_dim_multiple == 0:
+            self._popsize = population_size
+        assert self._popsize > 0, "popsize must be non-zero positive value."
+
+        # # Check other hyper-params
+        assert mut > 0, "The value of mutation factor (i.e., F) must be larger than 0"
+        assert isinstance(mut_scheme, str), "The mutation scheme (e.g., best1, rand1) must be a string"
+        assert isinstance(constraint_handle, str), "The mutation boundary handle constrain (e.g., clip, reflection) must be a string"
+        assert crossp > 0 and crossp < 1, "The value of crossover factor (i.e., CR or crossp) must be [0,1]"
+        self._mut = mut
+        self._crossp = crossp
+        self._mut_scheme = mut_scheme
+        self._constraint_handle = constraint_handle
+
+        self._toggle = 0
+        self._pop_norm = None
+        self._pop_fits = None
+        self._best_idx = None
+        self._number_evals = 0  # number of training evaluations
+
+        self.history = {}
+        self.history['best_fits'] = []
+        self.history['best_solutions'] = []
+        self.history['num_evals'] = []
+
+        return
+
+    
 
     # #########################################
     # # Create Population members to evaluate
@@ -219,12 +211,12 @@ class DE:
         for j in range(self._popsize):
 
             # # Create number generator for trial member (optionally include loop to allow repetability)
-            if loop is None:
-                trial_rng = np.random.default_rng()
-            else:
-                trial_rng = np.random.default_rng(self._trial_seed+loop+j)
+            seed = None
+            if loop is not None:
+                seed = self._trial_seed+loop+j
+            trial_rng = np.random.default_rng(seed)
 
-            # # Select Indexs to generate mutants from
+            # # Select Indexes to generate mutants from
             """
             Creates an range array(0, popsize) but excludes the current
             value of j, used to randomly select pop involved in mutation.
@@ -241,13 +233,18 @@ class DE:
             trial_list.append(trial)
         
         trial_pop = np.asarray(trial_list, dtype=object)
-        trial_pop = np.around(trial_pop.astype(np.float), decimals=5)
+        trial_pop = np.around(trial_pop.astype(np.float64), decimals=5)
 
         return trial_pop
 
     #
 
-    def _mutate(self, idxs, current_idx, trial_rng):
+    def _mutate(
+            self, 
+            idxs:list, 
+            current_idx:int, 
+            trial_rng:np.random.default_rng,
+        ):
         """
         Selects which mutation scheme to use, and returns the mutant.
         """
