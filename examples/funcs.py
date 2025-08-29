@@ -45,22 +45,21 @@ def polynomial_order_3(
     return (x1 - 3) ** 2 + (10 * (x2 + 2)) ** 2 + (x3**3)
 
 def polynomial_order_5(
-        x:float, 
+        x:np.ndarray, 
         w:np.ndarray,
     ) -> float:
     """
     Third Order Quadratic to solve
 
     Args:
-        x1 (float): first coef
-        x2 (float): second coef
-        x3 (float): third coef
+        x (np.ndarray): x values to compute for
+        w (np.ndarray): the 6 coefficients
 
     Returns:
-        float: y
+        np.ndarray: y
     """
     if np.shape(w)[0] != 6:
-        raise ValueError("must have 6 coefs")
+        raise ValueError(f"Must have 6 coefs, not shape: {np.shape(w)}")
 
     return w[0] + w[1]*x + w[2] * x**2 + w[3] * x**3 + w[4] * x**4 + w[5] * x**5
 

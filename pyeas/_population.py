@@ -43,7 +43,6 @@ class Population:
         """Population size (i.e., number of members)"""
         return self._size
     
-
     @property
     def bounds(self) -> int:
         """Bounds for each gene within a member"""
@@ -77,12 +76,32 @@ class Population:
         """
         return self._normalised_population
     
+    @population_raw.setter
+    def population_raw(self, arr:np.ndarray):
+        """Get raw normalised population
+
+        Returns:
+            np.ndarray: raw pop
+        """
+        if isinstance(arr, np.ndarray) is False:
+            raise TypeError(f"Must set the population using an array, not a {type(arr)}")
+
+        if np.shape(arr)[0] != self.size:
+            raise ValueError(f"Array to set as population must have {self.size} rows, but is shape: {np.shape(arr)}")
+        
+        if np.shape(arr)[1] != self.n_dimensions:
+            raise ValueError(f"Array to set as population must have {self.size} rows, but is shape: {np.shape(arr)}")
+        
+        self._normalised_population = arr
+        
+        return
+    
     @property
     def population(self) -> np.ndarray:
         """Return the denormalised (and grouped) parent population"""
         
         denormalised_pop = self.denormalise(self._normalised_population)
-
+        
         if self.flatten_gene_groupings is True:
             return denormalised_pop
 
@@ -115,8 +134,8 @@ class Population:
         else:
             
             if np.shape(arr)[1] != self.n_dimensions:
-                raise ValueError(f"Array to set as population must have {self.n_dimensions} genes per row, but is shape: {np.shape(arr)}")
-            
+                raise ValueError(f"Array to set as population must have {self.n_dimensions} genes per row, but is shape: {np.shape(arr)}")        
+
         arr = self.normalise(arr)
 
         if np.min(arr) < 0:
@@ -129,8 +148,20 @@ class Population:
         self._normalised_population = arr
         logger.info(f"[Population] [Setter] Finished setting population!")
 
-    
 
+    def __repr__(self) -> str:
+        """What is shown when the object is called"""
+        summary = [f"Population of {self._size} members, each with {self._n_dimensions} genes. "]
+
+        if self.flatten_gene_groupings:
+            summary.append(f"Genes groupings are flattened.")    
+        else:
+            summary.append(f"Genes are grouped as follows: {self._groupings}.")   
+
+        summary.append(f"Population is: \n{self.population[:5]}\n ...")
+
+        return "\n".join(summary)
+    
     def __init__(
         self,
         size:int|float,
@@ -170,9 +201,14 @@ class Population:
         # # Make random generator object
         self._rng = np.random.default_rng(seed)
 
+        if len(member) == 1 and flatten_gene_groupings is False:
+            logging.warning(f"[Population] You are retaining gene groupings, but there is only one gene")
+
+
         self._initi_method = initi_method
         self.use_absolute_size = use_absolute_size
         self.flatten_gene_groupings = flatten_gene_groupings
+        
 
         if isinstance(member, list) is False:
             raise TypeError("Must be using a list of Genes to define a member: Not using a list!")
@@ -190,7 +226,7 @@ class Population:
         self._bounds = np.array(self._bounds)
 
         if flatten_gene_groupings is False:
-            logger.info(f"[Population] Members contain genes grouped in: {self._groupings}")
+            logger.info(f"[Population] Members contain genes grouped in groups of: {self._groupings}")
 
         logger.info(f"[Population] Each Member has {self._n_dimensions} genes")
         info = ', '.join([f"N={element.number} ∈{element.bounds}" for element in member])

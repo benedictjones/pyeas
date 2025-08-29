@@ -1,9 +1,9 @@
 import numpy as np
-
+import copy
 from typing import Optional, List, Union, Dict, Any, Literal
 import time
 
-from pyeas._population_scaling import PopScale
+from pyeas._population import Population
 
 class DE:
     """Differential Evolution (DE) stochastic optimizer class with ask-and-tell interface.
@@ -18,48 +18,34 @@ class DE:
     # #########################################
     # # Properties: https://www.freecodecamp.org/news/python-property-decorator/ 
 
-    @property  # get 'protected' property
-    def dim(self) -> int:
-        """A number of dimensions"""
-        return self._n_dim
-
-    @property
-    def population_size(self) -> int:
-        """A population size"""
-        return self._popsize
-
-    @property
-    def bounds(self) -> int:
-        """The bounds"""
-        return self.PopScale._bounds
-
-    @property  
-    def groupings(self) -> int:
-        """The Grouping"""
-        return self.PopScale._groupings
-
     @property
     def generation(self) -> int:
         """Generation number which is monotonically incremented
         when multi-variate gaussian distribution is updated."""
-        return self._g
-
+        return len(self.history['best_fits'])
+    
+    @property
+    def population(self) -> int:
+        """Generation number which is monotonically incremented
+        when multi-variate gaussian distribution is updated."""
+        return self._population
+    
     @property
     def parent_pop(self) -> np.ndarray:
-        """Return the denormalised (and grouped) parent poulation"""
-        return self.PopScale._denorm(self._pop_norm)
+        """Return the denormalised (and grouped) parent population"""
+        return self._population.population
 
     @parent_pop.setter
     def parent_pop(self, new_parent_pop: np.ndarray):
-        """Set the parent poulation"""
-        self._pop_norm = self.PopScale._norm(new_parent_pop)
+        """Set the parent population"""
+        self._population.population = new_parent_pop
         return
 
     @property
     def best_member(self) -> int:
         """Fetch the current best member and it's training fitness"""
         fit = self._pop_fits[self._best_idx]
-        member = self.PopScale._denorm([self._pop_norm[self._best_idx]])[0]
+        member = self.population.population[self._best_idx]
         return (fit, member)
     
     @property
@@ -72,97 +58,65 @@ class DE:
 
     def __init__(
         self,
+        population: Population,
         mut: float,
         crossp: float,
-        bounds: np.ndarray,
-        population_size: Optional[Union[int, float]] = None,
-        seed: Optional[int] = None,
-        pop_dim_multiple: int = 0,
-        groupings: Optional[Union[np.ndarray, list]] = None,
         mut_scheme: Literal['rand1', 'best1', 'rand2', 'best2', 'ttb1'] = 'best1',
         constraint_handle: Optional[Literal['clip', 'projection', 'resample', 'scaled', 'reflection']] = 'reflection',
+        seed: Optional[int] = None,
     ):
         """
         Initialise the DE object.
 
         Args:
+            population (Population): 
+                Initialise Population object.
             mut (float): 
                 Mutation Factor (i.e., 'F') for selected mutation scheme.
             crossp (float): 
-                Crossover Rate (i.e., 'CR') for binary crossover.
-            bounds (np.ndarray): 
-                Lower and upper domain boundaries for either
-                i) each parameter,
-                ii) each grouping of paramaters (see 'groupings' argument)
-            population_size (Optional[Union[int, float]], optional): 
-                A population size (optional). If None, defualts to 2*number_dimensions. 
-                Defaults to None.
-            seed (Optional[int], optional): 
-                Random state. 
-                Defaults to None.
-            pop_dim_multiple (int, optional): 
-                A population size modifier.
-                Toggles the effect of population_size argument to scale with the number of dimensions:
-                    0 --> pop = population_size
-                    1 --> pop = population_size*number_dimensions. 
-                Defaults to 0.
-            groupings (Optional[Union[np.ndarray, list]], optional): 
-                An array which informs the object of the shape of a population member (optional).
-                None        --> each member is a 1d array
-                                e.g., possible member: [1.5, 0.5, 0.6, -0.9, 1.1]
-                Otherwise   --> each member contains several diffenet shaped arrays 
-                                e.g., groupings=[1,3,2] 
-                                      possible member: [ [1.5], [0.5, 0.6, -0.9], [1.1]] 
-                Defaults to None.
+                Crossover Rate (i.e., 'CR') for binary crossover.            
             mut_scheme (Literal['rand1', 'best1', 'rand2', 'best2', 'ttb1'], optional): 
-                A string which assignes the mutation scheme used (optional).
+                A string which assigns the mutation scheme used (optional).
                 Schemes available: best1, best2, rand1, rand2, ttb1 (target-to-best). 
                 Defaults to 'best1'.
             constraint_handle (Optional[Literal['clip', 'projection', 'resample', 'scaled', 'reflection']], optional): 
-                A string which assignes the method of handeling boundary violations during mutation (optional).
+                A string which assigns the method of handling boundary violations during mutation (optional).
                 Schemes available: clip/projection, resample, scaled, reflection . 
                 Defaults to 'reflection'.
+            seed (Optional[int], optional): 
+                Random state. 
+                Defaults to None.
         """
         
+        self._population = copy.deepcopy(population)
 
         # # Make random generator object
         self._rng = np.random.default_rng(seed)
         self._trial_seed = self._rng.integers(10000, size=1)[0]
 
-        # # Check number of dimensions
-        if groupings is None:
-            self._n_dim = len(bounds)
-        else:
-            self._n_dim = np.sum(groupings)
-        assert self._n_dim > 1, "The dimension of mean must be larger than 1"
-        
-        # # Initialise object to normalise and denormalise the population
-        self.PopScale = PopScale(np.array(bounds), groupings)
-
-        # # Check population size
-        assert pop_dim_multiple == 0 or pop_dim_multiple == 1, "population as multiple of number of dimensions flag must be 0 or 1"
-        if population_size is None:
-            # self._popsize = 4 + math.floor(3 * math.log(self._n_dim))  # (eq. 48)  used for CMAES default allocation
-            self._popsize = 2 * self._n_dim  # just select two times the number of dimension
-        elif population_size is not None and pop_dim_multiple == 1:
-            self._popsize = population_size*self._n_dim
-        elif population_size is not None and pop_dim_multiple == 0:
-            self._popsize = population_size
-        assert self._popsize > 0, "popsize must be non-zero positive value."
 
         # # Check other hyper-params
-        assert mut > 0, "The value of mutation factor (i.e., F) must be larger than 0"
-        assert isinstance(mut_scheme, str), "The mutation scheme (e.g., best1, rand1) must be a string"
-        assert isinstance(constraint_handle, str), "The mutation boundary handle constrain (e.g., clip, reflection) must be a string"
-        assert crossp > 0 and crossp < 1, "The value of crossover factor (i.e., CR or crossp) must be [0,1]"
+        if mut < 0:
+            raise ValueError("The value of mutation factor (i.e., F) must be larger than 0")
         self._mut = mut
-        self._crossp = crossp
+
+        if isinstance(mut_scheme, str) is False:
+            raise ValueError("The mutation scheme (e.g., best1, rand1) must be a string")
         self._mut_scheme = mut_scheme
+
+        if isinstance(constraint_handle, str) is False:
+            raise ValueError("The mutation boundary handle constrain (e.g., clip, reflection) must be a string")
         self._constraint_handle = constraint_handle
 
+        if crossp < 0 or crossp > 1:
+            raise ValueError("The value of crossover factor (i.e., CR or crossp) must be [0,1]")
+        self._crossp = crossp
+        
+        
         self._toggle = 0
-        self._pop_norm = None
+
         self._pop_fits = None
+        self._best_idx = None
         self._best_idx = None
         self._number_evals = 0  # number of training evaluations
 
@@ -181,34 +135,25 @@ class DE:
     def ask(self, loop: Optional[int] = None) -> np.ndarray:
         """Sample a whole trial population which needs to be evaluated"""
 
-        assert self._toggle == 0, "Must first evaluate current trials and tell me their fitnesses."
+        if self._toggle != 0:
+            raise ValueError("Must first evaluate current trials and tell me their fitnesses.")
 
 
         # # Generate population
-        if self._pop_norm is None:
-            self._pop_norm = self._sample_initi_pop() # generate initial parent population to evaluate
+        if self._pop_fits is None:
             self._toggle = 1
-            return self.PopScale._denorm(self._pop_norm)
-        
+            return self.population.population
         else:
             trial_pop = self._sample_trial_pop(loop)  # generate trial population to evaluate
             self._toggle = 1
-            return self.PopScale._denorm(trial_pop)
-    
-
-    def _sample_initi_pop(self) -> np.ndarray:
-        """Sample initital normalised population"""
-        norm_pop = []
-        for i in range(self._popsize):
-            norm_pop.append(np.around(self._rng.random(self._n_dim), decimals=5))
-        return np.asarray(norm_pop)
+            return self.population.denormalise(trial_pop)
     
 
     def _sample_trial_pop(self, loop) -> np.ndarray:
         """Sample trial normalised population"""
 
         trial_list = []
-        for j in range(self._popsize):
+        for j in range(self.population.size):
 
             # # Create number generator for trial member (optionally include loop to allow repetability)
             seed = None
@@ -222,7 +167,7 @@ class DE:
             value of j, used to randomly select pop involved in mutation.
             i.e idxs is all pop index's except the current one
             """
-            idxs = [idx for idx in range(self._popsize) if idx != j]
+            idxs = [idx for idx in range(self.population.size) if idx != j]
 
             # # Mutation
             mutant = self._mutate(idxs, j, trial_rng)
@@ -291,7 +236,7 @@ class DE:
         """
         # selected = np.random.choice(idxs, 3, replace=False)
         selected = trial_rng.choice(idxs, 3, replace=False)
-        np_pop = np.asarray(self._pop_norm, dtype=object)
+        np_pop = np.asarray(self.population.population_raw, dtype=object)
         a, b, c = np_pop[selected]  # assign to a variable
         # note this is not the real pop values
 
@@ -310,7 +255,7 @@ class DE:
 
         # selected = np.random.choice(idxs, 5, replace=False)
         selected = trial_rng.choice(idxs, 5, replace=False)
-        np_pop = np.asarray(self._pop_norm, dtype=object)
+        np_pop = np.asarray(self.population.population_raw, dtype=object)
         a, b, c, d, e = np_pop[selected]  # assign to a variable
         # note; a, b etc are genomes
 
@@ -329,9 +274,9 @@ class DE:
 
         # selected = np.random.choice(idxs, 2, replace=False)
         selected = trial_rng.choice(idxs, 2, replace=False)
-        np_pop = np.asarray(self._pop_norm, dtype=object)
+        np_pop = np.asarray(self.population.population_raw, dtype=object)
         b, c = np_pop[selected]
-        a = self._pop_norm[self._best_idx]
+        a = self.population.population_raw[self._best_idx]
 
         # mutant
         mutant = a + self._mut * (b - c)
@@ -348,9 +293,9 @@ class DE:
 
         # selected = np.random.choice(idxs, 4, replace=False)
         selected = trial_rng.choice(idxs, 4, replace=False)
-        np_pop = np.asarray(self._pop_norm, dtype=object)
+        np_pop = np.asarray(self.population.population_raw, dtype=object)
         b, c, d, e = np_pop[selected]
-        a = self._pop_norm[self._best_idx]
+        a = self.population.population_raw[self._best_idx]
 
         # mutant
         mutant = a + self._mut * (b - c + d - e)
@@ -366,9 +311,9 @@ class DE:
 
         # selected = np.random.choice(idxs, 2, replace=False)
         selected = trial_rng.choice(idxs, 2, replace=False)
-        np_pop = np.asarray(self._pop_norm, dtype=object)
-        a = self._pop_norm[current_idx]
-        b = self._pop_norm[self._best_idx]
+        np_pop = np.asarray(self.population.population_raw, dtype=object)
+        a = self.population.population_raw[current_idx]
+        b = self.population.population_raw[self._best_idx]
         c, d = np_pop[selected]
 
         F1 = self._mut
@@ -456,17 +401,17 @@ class DE:
         """
 
         # # Return true or false for each of the random elements
-        # cross_points = np.random.rand(self._n_dim) < cr
-        cross_points = trial_rng.random(size=self._n_dim) < self._crossp
+        # cross_points = np.random.rand(self.population.n_dimensions) < cr
+        cross_points = trial_rng.random(size=self.population.n_dimensions) < self._crossp
 
         # # Randomly set a paramater to True to ensure a mutation occurs
-        a = np.arange(self._n_dim)
+        a = np.arange(self.population.n_dimensions)
         x = int(trial_rng.choice(a))
 
         cross_points[x] = True
 
         # # Where True, yield x, otherwise yield y np.where(condition,x,y)
-        trial = np.where(cross_points, mutant, self._pop_norm[j])
+        trial = np.where(cross_points, mutant, self.population.population_raw[j])
 
         return trial
 
@@ -479,7 +424,7 @@ class DE:
         """Tell the object the fitness values of the whole trial population which has been valuated"""
 
         # # if condition returns False, AssertionError is raised:
-        assert len(fitnessess) == self._popsize, "Must tell with popsize-length solutions."
+        assert len(fitnessess) == self.population.size, "Must tell with popsize-length solutions."
         assert self._toggle == 1, "Must first ask (i.e., fetch) & evaluate new trials."
 
 
@@ -491,14 +436,14 @@ class DE:
         else:
             # evaluate trial population to evaluate
             # # Compare the children/trial genomes to the parent/target
-            new_pop = np.copy(self._pop_norm)
+            new_pop = np.copy(self.population.population_raw)
             new_pop_fits = np.copy(self._pop_fits)
             assert trials is not None, "To update the population, please tell me the fitnesses and trials used"
-            trials = self.PopScale._norm(trials)
+            trials = self.population.normalise(trials)
             old_best = self.best_member[0]
 
 
-            for j in range(self._popsize):
+            for j in range(self.population.size):
                 #print("\ncompare fi", j, "fi=", fitnessess[j], "to previous fitness=", self._pop_fits[j], " prev best:", old_best)
 
                 # # find best index
@@ -516,7 +461,7 @@ class DE:
             assert old_best >= new_pop_fits[self._best_idx], "wrong! old best: %f, new best: %f, best idx: %d" % (old_best, new_pop_fits[self._best_idx], self._best_idx)
             
             # # Assign updated population as the parent 
-            self._pop_norm = new_pop
+            self.population.population_raw = new_pop
             self._pop_fits = new_pop_fits
 
         self._number_evals += len(trials)
