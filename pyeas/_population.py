@@ -162,6 +162,7 @@ class Population:
 
         return "\n".join(summary)
     
+
     def __init__(
         self,
         size:int|float,
@@ -286,8 +287,8 @@ class Population:
             raise ValueError(f"Can only group a 2D array!")
         elif isinstance(population[0,0], numbers.Real) is False:
             raise ValueError(f"Population must be a simple 2D array of numbers!")
-        elif np.shape(population)[0] != self.size:
-            raise ValueError(f"Population to group must have correct number of members")
+        # elif np.shape(population)[0] != self.size:
+        #     raise ValueError(f"Population to group must have correct number of members")
         elif np.shape(population)[1] != self.n_dimensions:
             raise ValueError(f"Population to group must have correct number genes (i.e., the dimension)")
         
@@ -355,8 +356,8 @@ class Population:
             raise ValueError(f"Can only group a 2D array!")
         elif isinstance(population[0,0], numbers.Real) is False:
             raise ValueError(f"Population must be a simple 2D array of numbers!")
-        elif np.shape(population)[0] != self.size:
-            raise ValueError(f"Population to group must have correct number of members")
+        # elif np.shape(population)[0] != self.size:
+        #     raise ValueError(f"Population to group must have correct number of members")
         elif np.shape(population)[1] != self.n_dimensions:
             raise ValueError(f"Population to group must have correct number genes (i.e., the dimension)")
         

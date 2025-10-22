@@ -2,8 +2,14 @@ import numpy as np
 import copy
 from typing import Optional, List, Union, Dict, Any, Literal
 import time
+import logging 
 
 from pyeas._population import Population
+from pyeas.utils.boundary import handle_bound_violation
+
+logger = logging.getLogger(__name__)
+
+
 
 class DE:
     """Differential Evolution (DE) stochastic optimizer class with ask-and-tell interface.
@@ -25,7 +31,7 @@ class DE:
         return len(self.history['best_fits'])
     
     @property
-    def population(self) -> int:
+    def population(self):
         """Generation number which is monotonically incremented
         when multi-variate gaussian distribution is updated."""
         return self._population
@@ -104,10 +110,6 @@ class DE:
             raise ValueError("The mutation scheme (e.g., best1, rand1) must be a string")
         self._mut_scheme = mut_scheme
 
-        if isinstance(constraint_handle, str) is False:
-            raise ValueError("The mutation boundary handle constrain (e.g., clip, reflection) must be a string")
-        self._constraint_handle = constraint_handle
-
         if crossp < 0 or crossp > 1:
             raise ValueError("The value of crossover factor (i.e., CR or crossp) must be [0,1]")
         self._crossp = crossp
@@ -117,8 +119,8 @@ class DE:
 
         self._pop_fits = None
         self._best_idx = None
-        self._best_idx = None
         self._number_evals = 0  # number of training evaluations
+        self._constraint_handle = constraint_handle
 
         self.history = {}
         self.history['best_fits'] = []
@@ -138,7 +140,6 @@ class DE:
         if self._toggle != 0:
             raise ValueError("Must first evaluate current trials and tell me their fitnesses.")
 
-
         # # Generate population
         if self._pop_fits is None:
             self._toggle = 1
@@ -149,7 +150,7 @@ class DE:
             return self.population.denormalise(trial_pop)
     
 
-    def _sample_trial_pop(self, loop) -> np.ndarray:
+    def _sample_trial_pop(self, loop:Optional[int]) -> np.ndarray:
         """Sample trial normalised population"""
 
         trial_list = []
@@ -185,11 +186,11 @@ class DE:
     #
 
     def _mutate(
-            self, 
-            idxs:list, 
-            current_idx:int, 
-            trial_rng:np.random.default_rng,
-        ):
+        self, 
+        idxs:list, 
+        current_idx:int, 
+        trial_rng:np.random.default_rng,
+    ):
         """
         Selects which mutation scheme to use, and returns the mutant.
         """
@@ -216,12 +217,12 @@ class DE:
                 raise ValueError("Invalit Mutation Scheme: %s" % (self._mut_scheme))
 
             # If the mutants values violate the bounds, deal with it
-            mutant, reinit = self._handle_bound_violation(mutant)
+            mutant, reinit = self.handle_bound_violation(mutant, handle=self._constraint_handle)
 
             resample_count += 1
 
             if resample_count >= 100:
-                mutant, reinit = self._handle_bound_violation(mutant, force_select='reflection')
+                mutant, reinit = self.handle_bound_violation(mutant, handle='clip')
 
         return mutant
 
@@ -326,73 +327,6 @@ class DE:
     
     #
 
-    # # If a mutants value falls outide of the bounds, sort it out somehow
-
-    def _handle_bound_violation(self, mutant, force_select=0):
-
-        num_violations = self._count_bound_violation(mutant)
-
-        # # if no violations, just return
-        if num_violations == 0:
-            return mutant, 0
-
-        # # Implement the selected violation handeling sheme
-        if force_select == 0:
-            handle = self._constraint_handle
-        else:
-            handle = force_select
-
-        #
-
-        # No handling
-        if handle is None:
-            return mutant, 0
-        
-        # Perform projection (i.e., clipping)
-        elif handle == 'clip' or handle == 'projection':
-            mutant = np.clip(mutant, 0, 1)
-            return mutant, 0
-
-        # Return the resample flag
-        elif handle == 'resample':
-            return mutant, 1
-
-        # Perform Scaled Mutant operation
-        elif handle == 'scaled':
-            alphas = [1]
-            for m in mutant:
-                if m > 1:
-                    alphas.append(1/m)
-
-            mutant = mutant*np.min(alphas)
-
-            # # Not fool proof
-            mutant = np.clip(mutant, 0, 1)
-
-            return mutant, 0
-
-        # Perform Scaled Mutant operation
-        elif handle == 'reflection':
-            for i, m in enumerate(mutant):
-                if m > 1:
-                    mutant[i] = 2-m
-                elif m < 0:
-                    mutant[i] = -m
-                else:
-                    mutant[i] = m
-
-            return mutant, 0
-        
-        else:
-            raise ValueError("The constraint_handle that selects how to manage boundary violations is not valid")
-
-    def _count_bound_violation(self, mutant):
-        num_violations = np.size(np.where(mutant < 0)) + np.size(np.where(mutant > 1))  # How many clips are there?
-        # print("Num clips below 0: %d, Num clips above 1: %d" % (np.size(np.where(mutant < 0)), np.size(np.where(mutant > 1))))
-        return num_violations
-    
-    #
-
     # # Recombination & Replacement
 
     def _bin_cross(self, j, trial_rng, mutant):
@@ -420,12 +354,18 @@ class DE:
     # #########################################
     # # Use the fed back fitnesses to perform a generational update
 
-    def tell(self, fitnessess: list, trials: Optional[np.ndarray] = None) -> None:
+    def tell(
+        self, 
+        fitnessess: list, 
+        trials: Optional[np.ndarray] = None
+    ) -> None:
         """Tell the object the fitness values of the whole trial population which has been valuated"""
 
         # # if condition returns False, AssertionError is raised:
-        assert len(fitnessess) == self.population.size, "Must tell with popsize-length solutions."
-        assert self._toggle == 1, "Must first ask (i.e., fetch) & evaluate new trials."
+        if len(fitnessess) != self.population.size:
+            raise ValueError("Must tell with popsize-length solutions.")
+        if self._toggle != 1:
+            raise ValueError("Must first ask (i.e., fetch) & evaluate new trials.")
 
 
         # # Retrieve fitness information and make population update
