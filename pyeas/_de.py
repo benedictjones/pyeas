@@ -217,12 +217,12 @@ class DE:
                 raise ValueError("Invalit Mutation Scheme: %s" % (self._mut_scheme))
 
             # If the mutants values violate the bounds, deal with it
-            mutant, reinit = self.handle_bound_violation(mutant, handle=self._constraint_handle)
+            mutant, reinit = handle_bound_violation(mutant, handle=self._constraint_handle)
 
             resample_count += 1
 
             if resample_count >= 100:
-                mutant, reinit = self.handle_bound_violation(mutant, handle='clip')
+                mutant, reinit = handle_bound_violation(mutant, handle='clip')
 
         return mutant
 
