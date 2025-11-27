@@ -253,7 +253,7 @@ class Population:
 
         self._normalised_population = np.around(
             normalised_population,
-            decimals=5,
+            decimals=6,
         )
         
         return

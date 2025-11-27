@@ -1,11 +1,14 @@
 import numpy as np
 import math
 import copy
-from typing import Optional, Literal
-import time
+from typing import Optional, Literal, Tuple
+import logging
 
 from pyeas._population import Population
 from pyeas.utils.boundary import handle_bound_violation
+
+
+logger = logging.getLogger(__name__)
 
 
 class OAIES:
@@ -36,7 +39,7 @@ class OAIES:
         return self._population.denormalise(np.array([self._parent_norm]))[0]
 
     @property
-    def best_member(self) -> int:
+    def best_member(self) -> Tuple[float, np.ndarray]:
         """Fetch the current best member and it's training fitness"""
         return (self._parent_fit, self.parent)
     
@@ -309,8 +312,8 @@ class OAIES:
                 raise ValueError("Invalid gradient decent optimiser method")
 
             # print("theta:", theta)
-            # print("ga:", np.around(ga.astype(float), decimals=5))
-            theta = np.around(theta.astype(float), decimals=5)
+            logging.info(f"\n[OAIES] - ga (step size): {np.around(ga.astype(float), decimals=7)}")
+            theta = np.around(theta.astype(float), decimals=8)
             theta = self._mutant_boundary(theta)
             self._parent_norm = theta
             # print("theta:", theta)

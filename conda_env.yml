@@ -1,21 +1,26 @@
+# Not this is no longer maintained (in favour of uv)
 # conda env create --name eas --file conda_env.yml
 name: eas
 channels:
   - conda-forge
   - defaults
 dependencies:
-  # Core
+  # # Core
   - python=3.13
   - pip
-  # Required
+  # # # Lock & Pack
+  # - conda-lock 
+  # - conda-pack
+  # # Required
   - numpy
   - matplotlib
   - tqdm
   - 'scipy>=1.7'
-  # Testing
+  # # Testing
   - pytest
-  # Notebook usage
+  # # Notebook usage
   - ipykernel 
   - nbstripout
+  - marimo
   # - pip:
   #   - pyeas

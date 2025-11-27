@@ -140,4 +140,6 @@ mod_load/DataComplexity/*.pdf
 **btest*
 **old*
 
+__marimo__
+
 .vscode/
