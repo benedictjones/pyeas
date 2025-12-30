@@ -1,15 +1,15 @@
 [project]
 name = "pyeas"
-version = "2.0.0.dev1"
+version = "1.0.0.dev1"
 description = "Implements Evolutionary Algorithms and tools"
 readme = "README.md"
 keywords=[
-    'python', 
-    'Differential Evolution', 
-    'DE', 
-    'OpenAI Evolutionary Strategy', 
-    "OpenAI-ES", 
-    "CMAES", 
+    'python',
+    'Differential Evolution',
+    'DE',
+    'OpenAI Evolutionary Strategy',
+    "OpenAI-ES",
+    "CMAES",
     "Page Trend Test"
 ]
 authors = [
@@ -18,9 +18,9 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "matplotlib>=3.10.7",
-    "numpy>=2.2.6",
+    "numpy>=2.0",
     "scipy>=1.7",
-    "tqdm>=4.67.1",
+    "tqdm>=4.66.6",
 ]
 
 [project.scripts]
@@ -32,7 +32,9 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "ipykernel>=7.1.0",
     "marimo>=0.18.1",
+    "nbstripout>=0.8.2",
     "pytest>=9.0.1",
     "pyzmq>=27.1.0",
 ]
