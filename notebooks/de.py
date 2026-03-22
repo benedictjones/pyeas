@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.1"
+__generated_with = "0.20.4"
 app = marimo.App()
 
 
@@ -39,6 +39,13 @@ def _():
 
 
 @app.cell
+def _():
+    import matplotlib.pyplot as plt
+
+    return (plt,)
+
+
+@app.cell
 def _(mo):
     mo.md(r"""
     Lets First define a problem:
@@ -61,6 +68,7 @@ def _():
 def _(np):
     def rmse(y, y_pred):
         return np.sqrt(sum((y - y_pred)**2) / len(y))
+
     return (rmse,)
 
 
@@ -122,19 +130,19 @@ def _(mo):
 def _(pop):
     from pyeas._de import DE 
 
-    optimizer = DE(
+    optimizer1 = DE(
         population=pop,
         mut=0.6,
         crossp=0.6,
         mut_scheme = 'ttb1',  # 'ttb1', rand1
         seed=1,
     )
-    return DE, optimizer
+    return DE, optimizer1
 
 
 @app.cell
-def _(np, optimizer):
-    trial_pop = optimizer.ask(loop=0)
+def _(np, optimizer1):
+    trial_pop = optimizer1.ask(loop=0)
     print(np.shape(trial_pop))
 
     trial_pop[:3]
@@ -155,14 +163,14 @@ def _(rmse, trial_pop, x, y):
 
 
 @app.cell
-def _(optimizer, solutions, trial_pop):
-    optimizer.tell(solutions, trial_pop)
+def _(optimizer1, solutions, trial_pop):
+    optimizer1.tell(solutions, trial_pop)
     return
 
 
 @app.cell
-def _(optimizer):
-    optimizer.population.population[optimizer._best_idx]
+def _(optimizer1):
+    optimizer1.population.population[optimizer1._best_idx]
     return
 
 
@@ -205,14 +213,55 @@ def _(optimizer, polynomial_order_5, rmse, x, y):
 
 
 @app.cell
-def _(optimizer):
-    import matplotlib.pyplot as plt
+def _(mo):
+    mo.md(r"""
+    Consider the population change over time:
+    """)
+    return
 
-    fig, ax = plt.subplots()
-    ax.plot(optimizer.history['best_fits'])
-    plt.yscale('log')
-    print(optimizer.history['best_solutions'][-1])
-    return (plt,)
+
+@app.cell
+def _(optimizer, plt, pop):
+    _solutions = list(zip(*optimizer.history['best_solutions']))
+
+    _fig, _axs = plt.subplots(
+        nrows=len(_solutions), 
+        sharex=True,
+        figsize=(8,len(_solutions)*1.1),
+    )
+    for _i, _v in enumerate(_solutions):
+        _axs[_i].plot(_v)
+        _axs[_i].set_ylabel(f'Gene {_i}')
+        _axs[_i].set_ylim(pop.bounds[_i])
+
+    _axs[-1].set_xlabel('Generation')
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    Now, lets plot the performance over the generations:
+    """)
+    return
+
+
+@app.cell
+def _(optimizer, plt):
+    fig_performance, ax_performance = plt.subplots()
+    ax_performance.plot(optimizer.history['best_fits'])
+    ax_performance.set_yscale('log')
+    ax_performance.set_xlabel('Generation')
+    ax_performance.set_ylabel('loss')
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    And the final solution:
+    """)
+    return
 
 
 @app.cell
@@ -322,6 +371,7 @@ def _():
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 

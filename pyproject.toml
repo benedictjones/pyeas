@@ -1,6 +1,6 @@
 [project]
 name = "pyeas"
-version = "2.0.0.dev1"
+version = "1.0.0.dev1"
 description = "Implements Evolutionary Algorithms and tools"
 readme = "README.md"
 keywords=[
@@ -17,22 +17,31 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "marimo>=0.20.2",
     "matplotlib>=3.10.7",
     "numpy>=2.2.6",
     "scipy>=1.7",
     "tqdm>=4.67.1",
 ]
 
+
 [project.scripts]
 pyeas = "pyeas:main"
 
-[build-system]
-requires = ["uv_build>=0.9.13,<0.10.0"]
-build-backend = "uv_build"
+[project.urls]
+Homepage = "https://github.com/benedictjones/pyeas"
 
 [dependency-groups]
 dev = [
-    "marimo>=0.18.1",
+    "marimo>=0.21.1",
     "pytest>=9.0.1",
     "pyzmq>=27.1.0",
 ]
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.11.0"]
+build-backend = "uv_build"
+
+
+[tool.uv.build-backend]
+source-exclude = ["examples/**", "tests/**", "notebooks/**"]

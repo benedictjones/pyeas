@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.1"
+__generated_with = "0.20.4"
 app = marimo.App()
 
 
@@ -39,6 +39,14 @@ def _():
 
 
 @app.cell
+def _():
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    return np, plt
+
+
+@app.cell
 def _(mo):
     mo.md(r"""
     Lets First define a problem:
@@ -47,20 +55,19 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import numpy as np
-
+def _(np):
     rng = np.random.default_rng(0)
 
     x = np.linspace(0, 10, 500)
     y = np.cos(x) + rng.normal(0, 0.2, 500)
-    return np, x, y
+    return x, y
 
 
 @app.cell
 def _(np):
     def rmse(y:float, y_pred:float) -> float:
         return float(np.sqrt(sum((y - y_pred)**2) / len(y)))
+
     return (rmse,)
 
 
@@ -81,7 +88,7 @@ def _():
     ]
 
     pop = Population(
-        size=50,
+        size=200,
         member=member,
         seed=42,
     )
@@ -104,18 +111,18 @@ def _(mo):
 def _(pop):
     from pyeas._oaies import OAIES 
 
-    optimizer = OAIES(
+    optimizer1 = OAIES(
         population=pop,
         alpha=0.01,
         sigma=0.01,
         seed=1,
     )
-    return OAIES, optimizer
+    return OAIES, optimizer1
 
 
 @app.cell
-def _(np, optimizer):
-    trial_pop = optimizer.ask(loop=0)
+def _(np, optimizer1):
+    trial_pop = optimizer1.ask(loop=0)
     print(np.shape(trial_pop))
 
     trial_pop[:3]
@@ -136,9 +143,9 @@ def _(rmse, trial_pop, x, y):
 
 
 @app.cell
-def _(optimizer, solutions, trial_pop):
-    optimizer.tell(solutions, trial_pop)
-    optimizer._parent_norm
+def _(optimizer1, solutions, trial_pop):
+    optimizer1.tell(solutions, trial_pop)
+    optimizer1._parent_norm
     return
 
 
@@ -151,42 +158,48 @@ def _(mo):
 
 
 @app.cell
-def _(optimizer, polynomial_order_5, rmse, x, y):
+def _(optimizer1, polynomial_order_5, rmse, x, y):
     # Calc the new parent fitness, and Tell Again!
-    _pred = polynomial_order_5(x, optimizer.parent)
+    _pred = polynomial_order_5(x, optimizer1.parent)
     _parent_fit = rmse(y, _pred)
-    optimizer.tell_parent(_parent_fit)
+    optimizer1.tell_parent(_parent_fit)
     return
 
 
 @app.cell
-def _(optimizer):
-    optimizer.best_member
+def _(optimizer1):
+    optimizer1.best_member
     return
 
 
 @app.cell
-def _(mo):
-    mo.md(r"""
-    [
-      2715.964550083185,
-      "[ 1.6286  4.5562 -2.1355  4.2481 -4.7514  0.552 ]"
-    ]
-    """)
-    return
-
-
-@app.cell
-def _(np, optimizer):
-    trial_pop_1 = optimizer.ask(loop=1)
+def _(np, optimizer1):
+    trial_pop_1 = optimizer1.ask(loop=1)
     print(np.shape(trial_pop_1))
-    trial_pop_1[:3]
+    print(np.mean(trial_pop_1, axis=0))
+    trial_pop_1[:5]
     return
 
 
 @app.cell
-def _(optimizer):
-    optimizer._sample_trial_pop(loop=10)
+def _(optimizer1):
+    optimizer1._parent_norm
+    return
+
+
+@app.cell
+def _(np, optimizer1):
+    _trial_pop_norm = optimizer1._sample_trial_pop(loop=10)
+
+    print(np.mean(_trial_pop_norm,axis=0))
+
+    _trial_pop_norm
+    return
+
+
+@app.cell
+def _(optimizer1):
+    optimizer1.history['trial_mean']
     return
 
 
@@ -202,7 +215,14 @@ def _(mo):
 
 @app.cell
 def _(OAIES, pop):
-    optimizer = OAIES(population=pop, alpha=0.002, sigma=0.005, seed=1, constraint_handle='reflection', optimiser='adam')
+    optimizer = OAIES(
+        population=pop, 
+        alpha=0.001, 
+        sigma=0.05, 
+        seed=1, 
+        constraint_handle='projection', 
+        optimiser='adam',
+    )
     return (optimizer,)
 
 
@@ -210,14 +230,19 @@ def _(OAIES, pop):
 def _(optimizer, polynomial_order_5, rmse, x, y):
     from tqdm import tqdm
 
-    num_gens = 1000
+    num_gens = 5000
     pbar = tqdm(range(num_gens), unit=' generations')
 
     for generation in pbar:
 
         solutions_1 = []
         trial_pop_2 = optimizer.ask(loop=generation)
-
+    
+        # print(trial_pop_2)
+        # logging.info(f"Parent: {optimizer.parent}")
+        # info = f"\n[OAIES] " + ', '.join([f"{_i}: {np.mean(trial_pop_2[:,_i]):.4f} ({np.std(trial_pop_2[:,_i]):.4f})" for _i in range(np.shape(trial_pop_2)[1])])
+        # logging.info(info)
+    
         for _trial in trial_pop_2:
             _pred = polynomial_order_5(x, _trial)
             _value = rmse(y, _pred)
@@ -229,19 +254,60 @@ def _(optimizer, polynomial_order_5, rmse, x, y):
 
         optimizer.tell_parent(float(_parent_fit))
         pbar.set_description_str(f'Best Member: {optimizer.parent}, loss: {optimizer.best_member[0]:.4} ')
+        # logging.info('\n')
     return (num_gens,)
 
 
 @app.cell
 def _(optimizer):
-    import matplotlib.pyplot as plt
+    optimizer.history['ga'][:10]
+    return
 
-    fig, ax = plt.subplots()
-    ax.plot(optimizer.history['best_fits'])
-    plt.yscale('log')
 
-    print(optimizer.history['best_solutions'][-1])
-    return (plt,)
+@app.cell
+def _(mo):
+    mo.md(r"""
+    Consider the population change over time:
+    """)
+    return
+
+
+@app.cell
+def _(optimizer, plt, pop):
+    _solutions = list(zip(*optimizer.history['best_solutions']))
+    _trial_m = list(zip(*optimizer.history['trial_mean']))
+
+    _fig, _axs = plt.subplots(
+        nrows=len(_solutions), 
+        sharex=True,
+        figsize=(8,len(_solutions)*1.1),
+    )
+    for _i in range(len(_solutions)):
+        _axs[_i].plot(_solutions[_i])
+        _axs[_i].plot(_trial_m[_i], alpha=0.5)
+        _axs[_i].set_ylabel(f'Gene {_i}')
+        _axs[_i].set_ylim(pop.bounds[_i])
+
+    _axs[-1].set_xlabel('Generation')
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    Now, lets plot the performance over the generations:
+    """)
+    return
+
+
+@app.cell
+def _(optimizer, plt):
+    fig_performance, ax_performance = plt.subplots()
+    ax_performance.plot(optimizer.history['best_fits'])
+    ax_performance.set_yscale('log')
+    ax_performance.set_xlabel('Generation')
+    ax_performance.set_ylabel('loss')
+    return
 
 
 @app.cell
@@ -251,7 +317,11 @@ def _(np, optimizer, plt, polynomial_order_5, x, y):
     ax_solution.scatter(x, y, marker='.', color='r', alpha=0.7, label='Target data')
     plt.plot(x, np.cos(x), '--', label='ideal cos(x)', color='k', alpha=0.5)
 
-    data = polynomial_order_5(x, optimizer.history['best_solutions'][-1])
+
+    best_solution = optimizer.history['best_solutions'][np.argmin(optimizer.history['best_fits'])]
+    # best_solution = optimizer.history['best_solutions'][-1]
+
+    data = polynomial_order_5(x, best_solution)
     ax_solution.plot(x, data, label='OpenAI-ES Solution')
 
     ax_solution.legend()
@@ -377,6 +447,7 @@ def _(ani, mo):
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 

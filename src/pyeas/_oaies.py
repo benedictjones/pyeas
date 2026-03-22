@@ -34,8 +34,10 @@ class OAIES:
         return self._population
     
     @property
-    def parent(self) -> np.ndarray:
+    def parent(self) -> Optional[np.ndarray]:
         """Return the denormalised (and grouped) parent population"""
+        if self._parent_norm is None:
+            return None
         return self._population.denormalise(np.array([self._parent_norm]))[0]
 
     @property
@@ -52,25 +54,28 @@ class OAIES:
     def __init__(
         self,
         population: Population,
-        alpha: float,
-        sigma: float,
+        alpha: float=0.001,
+        sigma: float=0.05,
         optimiser: Literal['vanilla', 'momentum', 'adam'] = 'adam',
         constraint_handle: Optional[Literal['clip', 'projection', 'resample', 'scaled', 'reflection']] = 'clip',
         momentum: Optional[float] = None,
         beta1:float=0.9,
-        beta2:float=0.99,
+        beta2:float=0.999,
         seed: Optional[int] = None,
     ):
         """
         Initialise OpenAI-ES stochastic optimizer class with ask-and-tell interface.
+        (Gradient are estimated)
 
         Args:
             population (Population): 
                 Initialise Population object.
             alpha (float): 
-                _description_
+                The learning rate or step size
+                Defaults to 0.001
             sigma (float): 
-                _description_
+                The gaussian noise used to perturb the normalized pseudo-population to create a trail population.
+                Defaults to 0.05
             optimiser (Literal['vanilla', 'momentum', 'adam'], optional): 
                 The gradient calculation method. 
                 Defaults to 'adam'.
@@ -80,11 +85,11 @@ class OAIES:
                 Defaults to 'reflection'.
             momentum (Optional[float], optional): _description_. Defaults to None.
             beta1 (float, optional): 
-                _description_. 
+                 Decay rates for the moving averages of the gradient. 
                 Defaults to 0.9.
             beta2 (float, optional): 
-                _description_. 
-                Defaults to 0.99.
+                 Decay rates for the moving averages of the squared gradient. 
+                Defaults to 0.999.
             seed (Optional[int], optional): 
                 Random seed. 
                 Defaults to None.
@@ -138,6 +143,9 @@ class OAIES:
         self.history['best_fits'] = []
         self.history['best_solutions'] = []
         self.history['num_evals'] = []
+        self.history['trial_mean'] = []
+        self.history['trial_std'] = []
+        self.history['ga'] = []
 
         return
 
@@ -147,24 +155,8 @@ class OAIES:
     # #########################################
     # # Create Population members to evaluate
 
-    def ask(self, loop: Optional[int] = None) -> np.ndarray:
-        """Sample a whole trial population which needs to be evaluated"""
-
-        if self._toggle != 0:
-            raise ValueError("Must first evaluate current trials and tell me their fitnesses.")
-
-        # # Generate population
-        if self._parent_norm is None:
-            self._toggle = 1
-            return self.population.population
-        else:
-            trial_pop = self._sample_trial_pop(loop)  # generate trial population to evaluate
-            self._toggle = 1
-            return self.population.denormalise(trial_pop)
-    
-
     def _sample_trial_pop(self, loop:Optional[int]) -> np.ndarray:
-        """Sample trial normalised population"""
+        """Sample **normalised** trial population"""
 
         # # Create number generator for trial member (optionally include loop to allow repetability)
         seed = None
@@ -178,41 +170,46 @@ class OAIES:
         trial_list = []
         for j in range(self.population.size):
 
-            # cretae trial by adding noise
-            trial = self._parent_norm + self._sigma*N[j]
+            no_violations_left = False
+            resample_count = 0
+            while no_violations_left is False:
+            
+                # Create trial by adding noise
+                mutant = self._parent_norm + self._sigma*N[j]
 
-            # perform boundary check
-            checked_trial = self._mutant_boundary(trial)
+                 # If the mutants values violate the bounds, deal with it
+                checked_mutant, no_violations_left = handle_bound_violation(mutant, handle=self._constraint_handle)
+                resample_count += 1
 
-            trial_list.append(checked_trial)
+                if resample_count >= 100:
+                    checked_mutant, no_violations_left = handle_bound_violation(mutant, handle='clip')
+                    break 
+
+            trial_list.append(checked_mutant)
         
         trial_pop = np.asarray(trial_list, dtype=object)
         trial_pop = np.around(trial_pop.astype(float), decimals=5)
 
         return trial_pop
 
-    #
+    def ask(self, loop: Optional[int] = None) -> np.ndarray:
+        """Sample a whole trial population which needs to be evaluated"""
 
-    # # If a mutants value falls outide of the bounds, sort it out somehow
+        if self._toggle != 0:
+            raise ValueError("Must first evaluate current trials and tell me their fitnesses.")
 
-    def _mutant_boundary(self, mutant:np.ndarray):
-        """
-        Ensures that a trial/mutant pop member does not violate given boundaries
-        """
-        reinit = 1
-        resample_count = 0
-        while reinit == 1:
+        # # Generate population
+        if self._parent_norm is None:
+            self._toggle = 1
+            _trial = self.population.population
+        else:
+            trial_pop = self._sample_trial_pop(loop)  # generate trial population to evaluate
+            self._toggle = 1
+            _trial = self.population.denormalise(trial_pop)
 
-            # If the mutants values violate the bounds, deal with it
-            checked_mutant, reinit = handle_bound_violation(mutant, handle=self._constraint_handle)
-
-            resample_count += 1
-
-            if resample_count >= 100:
-                checked_mutant, reinit = handle_bound_violation(mutant, handle='clip')
-
-        return checked_mutant
-
+        self.history['trial_mean'].append(np.mean(_trial, axis=0))
+        self.history['trial_std'].append(np.std(_trial, axis=0))
+        return _trial
 
     #
 
@@ -258,7 +255,7 @@ class OAIES:
             self._parent_norm = np.copy(trials_norm[np.argmin(fitnesses)])
 
             self._parent_fit = np.min(fitnesses) 
-
+            self.history['ga'].append(np.full(np.shape(self._parent_norm), np.nan))
 
         else:
             
@@ -269,30 +266,40 @@ class OAIES:
             # parent member to perform GD on
             theta = np.copy(self._parent_norm)  
 
+            # std = 1e-8
+            # R = -np.array(fitnesses)
+            # if np.std(R) > 0:
+            #     std = np.std(R)
+            # A = (R - np.mean(R)) / std
+
+            # # # Grad Estimate
+            # g = 1/(self.population.size*self._sigma) * np.dot(trials_norm.T, A)
+
+            std = 1e-8
             R = -np.array(fitnesses)
-            if np.std(R) <= 0:
-                std = 1e-8
-            else:
+            if np.std(R) > 0:
                 std = np.std(R)
             A = (R - np.mean(R)) / std
 
+            # mutant = self._parent_norm + self._sigma*N[j]
+            _epsilon = (trials_norm - self._parent_norm)/self._sigma
+            # trial_perterbations = trials_norm - self._parent_norm
+
+
             # # Grad Estimate
-            g = 1/(self.population.size*self._sigma) * np.dot(trials_norm.T, A)
+            g = 1/(self.population.size*self._sigma) * np.dot(_epsilon.T, A)
 
             # # Normal Grad Decent
             if self._optimiser == 'vanilla':
                 ga = g*self._alpha
-                theta = theta + ga
 
             # # Momentum
             elif self._optimiser == 'momentum':
                 # https://machinelearningmastery.com/gradient-descent-with-momentum-from-scratch/
                 if self._prev_ga is None:
                     ga = g*self._alpha
-                    theta = theta + ga
                 else:
                     ga = g*self._alpha + self._m*self._prev_ga
-                    theta = theta + ga
                 self._prev_ga = ga
 
             # # Adam GD
@@ -306,15 +313,18 @@ class OAIES:
                 v_hat = self._v/(1-self._beta2**t)
 
                 ga = self._alpha*m_hat/(1e-8+v_hat**0.5)
-                theta = theta + ga
+                
 
             else:
                 raise ValueError("Invalid gradient decent optimiser method")
 
-            # print("theta:", theta)
-            logging.info(f"\n[OAIES] - ga (step size): {np.around(ga.astype(float), decimals=7)}")
+            # Update from new grad step
+            theta = theta + ga
+
+            self.history['ga'].append(ga.astype(float))
+            # logging.info(f"\n[OAIES] - ga (step size): {np.around(ga.astype(float), decimals=7)}")
             theta = np.around(theta.astype(float), decimals=8)
-            theta = self._mutant_boundary(theta)
+            theta, _ = handle_bound_violation(theta, handle='clip')
             self._parent_norm = theta
             # print("theta:", theta)
             # exit()

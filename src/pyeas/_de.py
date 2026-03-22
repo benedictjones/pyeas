@@ -194,9 +194,9 @@ class DE:
         """
         Selects which mutation scheme to use, and returns the mutant.
         """
-        reinit = 1
+        no_violations_left = False
         resample_count = 0
-        while reinit == 1:
+        while no_violations_left is False:
 
             if self._mut_scheme == 'rand1':
                 mutant = self._rand1(idxs, trial_rng)
@@ -217,13 +217,12 @@ class DE:
                 raise ValueError("Invalit Mutation Scheme: %s" % (self._mut_scheme))
 
             # If the mutants values violate the bounds, deal with it
-            mutant, reinit = handle_bound_violation(mutant, handle=self._constraint_handle)
-
+            mutant, no_violations_left = handle_bound_violation(mutant, handle=self._constraint_handle)
             resample_count += 1
 
             if resample_count >= 100:
-                mutant, reinit = handle_bound_violation(mutant, handle='clip')
-
+                mutant, no_violations_left = handle_bound_violation(mutant, handle='clip')
+                break
         return mutant
 
     #

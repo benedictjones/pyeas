@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.1"
+__generated_with = "0.20.4"
 app = marimo.App()
 
 
@@ -61,6 +61,7 @@ def _():
 def _(np):
     def rmse(y, y_pred):
         return np.sqrt(sum((y - y_pred)**2) / len(y))
+
     return (rmse,)
 
 
@@ -200,13 +201,15 @@ def _(history_best_fits):
     fig_all, ax_all = plt.subplots()
     ax_all.plot(history_best_fits)
     ax_all.set_yscale('log')
-    plt.show()
+    ax_all.set_xlabel('Generation')
+    ax_all.set_ylabel('loss')
     return
 
 
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
