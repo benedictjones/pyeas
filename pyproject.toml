@@ -4,12 +4,12 @@ version = "1.0.0.dev1"
 description = "Implements Evolutionary Algorithms and tools"
 readme = "README.md"
 keywords=[
-    'python', 
-    'Differential Evolution', 
-    'DE', 
-    'OpenAI Evolutionary Strategy', 
-    "OpenAI-ES", 
-    "CMAES", 
+    'python',
+    'Differential Evolution',
+    'DE',
+    'OpenAI Evolutionary Strategy',
+    "OpenAI-ES",
+    "CMAES",
     "Page Trend Test"
 ]
 authors = [
@@ -17,11 +17,11 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "matplotlib>=3.10.7",
+    "matplotlib>=3.10.0",
     "numpy>=2.0",
     "pydantic>=2.12.5",
     "scipy>=1.7",
-    "tqdm>=4.67.1",
+    "tqdm>=4.66.6",
 ]
 
 
