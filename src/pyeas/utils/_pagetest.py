@@ -32,12 +32,12 @@ class PageTest:
     
 
     def __init__(
-                self,
-                num_cuts: int,
-                max_x: Optional[float] = None,
-                invert: int = 0,
-                problem_labels: Optional[list] = None,
-                ):
+        self,
+        num_cuts: int,
+        max_x: Optional[float] = None,
+        invert: int = 0,
+        problem_labels: Optional[list] = None,
+    ):
         
         # # Set number of cuts to half the number of problems
         self.num_cuts = num_cuts

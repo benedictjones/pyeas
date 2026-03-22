@@ -81,7 +81,7 @@ def _(mo):
 
 @app.cell
 def _():
-    from pyeas._population import Genes, Population
+    from pyeas.population import Genes, Population
 
     member = [
         Genes(bounds=(-5,5), number=6),
@@ -109,7 +109,7 @@ def _(mo):
 
 @app.cell
 def _(pop):
-    from pyeas._oaies import OAIES 
+    from pyeas import OAIES 
 
     optimizer1 = OAIES(
         population=pop,
@@ -237,12 +237,12 @@ def _(optimizer, polynomial_order_5, rmse, x, y):
 
         solutions_1 = []
         trial_pop_2 = optimizer.ask(loop=generation)
-    
+
         # print(trial_pop_2)
         # logging.info(f"Parent: {optimizer.parent}")
         # info = f"\n[OAIES] " + ', '.join([f"{_i}: {np.mean(trial_pop_2[:,_i]):.4f} ({np.std(trial_pop_2[:,_i]):.4f})" for _i in range(np.shape(trial_pop_2)[1])])
         # logging.info(info)
-    
+
         for _trial in trial_pop_2:
             _pred = polynomial_order_5(x, _trial)
             _value = rmse(y, _pred)

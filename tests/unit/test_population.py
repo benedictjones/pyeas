@@ -1,9 +1,8 @@
-import warnings
-
 import numpy as np
 from numpy.testing import assert_almost_equal
+import warnings
 
-from pyeas._population import Genes, Population
+from pyeas.population import Genes, Population
 
 
 

@@ -1,10 +1,10 @@
 import numpy as np
 import copy
-from typing import Optional, List, Union, Dict, Any, Literal
+from typing import Optional, List, Union, Dict, Any, Literal, Tuple
 import time
 import logging 
 
-from pyeas._population import Population
+from pyeas.population import Population
 from pyeas.utils.boundary import handle_bound_violation
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class DE:
     
     @property
     def parent_pop(self) -> np.ndarray:
-        """Return the denormalised (and grouped) parent population"""
+        """Return the denormalized (and grouped) parent population"""
         return self._population.population
 
     @parent_pop.setter
@@ -48,7 +48,7 @@ class DE:
         return
 
     @property
-    def best_member(self) -> int:
+    def best_member(self) -> Tuple[float, np.ndarray]:
         """Fetch the current best member and it's training fitness"""
         fit = self._pop_fits[self._best_idx]
         member = self.population.population[self._best_idx]
@@ -194,9 +194,9 @@ class DE:
         """
         Selects which mutation scheme to use, and returns the mutant.
         """
-        reinit = 1
+        no_violations_left = False
         resample_count = 0
-        while reinit == 1:
+        while no_violations_left is False:
 
             if self._mut_scheme == 'rand1':
                 mutant = self._rand1(idxs, trial_rng)
@@ -217,13 +217,12 @@ class DE:
                 raise ValueError("Invalit Mutation Scheme: %s" % (self._mut_scheme))
 
             # If the mutants values violate the bounds, deal with it
-            mutant, reinit = handle_bound_violation(mutant, handle=self._constraint_handle)
-
+            mutant, no_violations_left = handle_bound_violation(mutant, handle=self._constraint_handle)
             resample_count += 1
 
             if resample_count >= 100:
-                mutant, reinit = handle_bound_violation(mutant, handle='clip')
-
+                mutant, no_violations_left = handle_bound_violation(mutant, handle='clip')
+                break
         return mutant
 
     #

@@ -1,13 +1,13 @@
-# `marimo` Notebooks
+# Notebooks
 
-Here we use [`marimo`](https://docs.marimo.io/) notebooks to demonstrate some examples.
+We mainly use [Jupyter](https://jupyter.org/) notebooks to show example use cases.
+We do also consider [`marimo`](https://docs.marimo.io/) notebooks to demonstrate some examples.
 
-With `uv` we can edit a notebook in a web file using:
-```
-uv run marimo edit notebooks/de.py
-```
 
-Or, we can run an app using:
+## Misc
+
+To ensure we con't commit outputs, we use [`nbstripout`](https://pypi.org/project/nbstripout/0.2.5/).
+The git filter can be set up with:
 ```
-uv run marimo run notebooks/de.py
+nbstripout install
 ```

@@ -17,9 +17,8 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "marimo>=0.20.2",
     "matplotlib>=3.10.7",
-    "numpy>=2.2.6",
+    "numpy>=2.0",
     "scipy>=1.7",
     "tqdm>=4.67.1",
 ]
@@ -36,6 +35,9 @@ dev = [
     "marimo>=0.21.1",
     "pytest>=9.0.1",
     "pyzmq>=27.1.0",
+    "nbstripout>=0.9.1",
+    "ipykernel>=7.2.0",
+    "ipython>=8.38.0",
 ]
 
 [build-system]

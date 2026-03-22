@@ -48,7 +48,7 @@ def _(mo):
 
 @app.cell
 def _():
-    from pyeas._population import Genes, Population
+    from pyeas.population import Genes, Population
     from pyeas.examples.funcs import hc6 as loss_func
 
     member = [

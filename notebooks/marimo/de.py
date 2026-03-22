@@ -41,8 +41,9 @@ def _():
 @app.cell
 def _():
     import matplotlib.pyplot as plt
+    import numpy as np
 
-    return (plt,)
+    return np, plt
 
 
 @app.cell
@@ -54,14 +55,12 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import numpy as np
-
+def _(np):
     rng = np.random.default_rng(0)
 
     x = np.linspace(0, 10, 500)
     y = np.cos(x) + rng.normal(0, 0.2, 500)
-    return np, x, y
+    return x, y
 
 
 @app.cell
@@ -82,7 +81,7 @@ def _(mo):
 
 @app.cell
 def _():
-    from pyeas._population import Genes, Population
+    from pyeas.population import Genes, Population
 
     member = [
         Genes(bounds=(-5,5), number=6),

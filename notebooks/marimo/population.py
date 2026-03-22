@@ -56,7 +56,7 @@ def _(mo):
 
 @app.cell
 def _():
-    from pyeas._population import Genes
+    from pyeas.population import Genes
 
     Genes(bounds=(-1,2), number=10)
     return (Genes,)
@@ -90,7 +90,7 @@ def _(mo):
 
 @app.cell
 def _(member):
-    from pyeas._population import Population
+    from pyeas.population import Population
 
     pop = Population(
         size=3,

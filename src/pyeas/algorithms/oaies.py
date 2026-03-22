@@ -4,7 +4,7 @@ import copy
 from typing import Optional, Literal, Tuple
 import logging
 
-from pyeas._population import Population
+from pyeas.population import Population
 from pyeas.utils.boundary import handle_bound_violation
 
 
