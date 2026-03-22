@@ -1,14 +1,31 @@
 import numpy as np
-import math
 import copy
-from typing import Optional, Literal, Tuple
+from typing import Optional, Literal, Tuple, List, Any
 import logging
+from pydantic import BaseModel, Field, field_validator
 
 from pyeas.population import Population
 from pyeas.utils.boundary import handle_bound_violation
-
+from pyeas.utils.tracking import HistoryEvals, HistoryTrials, HistoryBestParent, ensure_nd_array
 
 logger = logging.getLogger(__name__)
+
+
+class History(HistoryEvals, HistoryTrials, HistoryBestParent, BaseModel):
+    """Data class to store OAIES results history"""
+    gradient_steps: List[np.ndarray] = Field([], description="History of number of population member evaluations")
+    
+    def append_ga(self, ga:np.ndarray):
+        self.gradient_steps = self.gradient_steps + [ga]
+
+    @field_validator('gradient_steps', mode='after')
+    @classmethod
+    def ensure_gradient_steps(cls, value: Any) -> any:
+        if len(value) > 0:
+            for v in value:
+                ensure_nd_array(v, 1)
+        return value
+
 
 
 class OAIES:
@@ -16,7 +33,6 @@ class OAIES:
     OpenAI-ES stochastic optimizer class with ask-and-tell interface.
     Based off the style of: https://github.com/CyberAgentAILab/cmaes/blob/main/cmaes/_cma.py
     """
-
     
     # #########################################
     # # Properties: https://www.freecodecamp.org/news/python-property-decorator/ 
@@ -25,7 +41,7 @@ class OAIES:
     def generation(self) -> int:
         """Generation number which is monotonically incremented
         when multi-variate gaussian distribution is updated."""
-        return len(self.history['best_fits'])
+        return self.history.generation
     
     @property
     def population(self):
@@ -41,14 +57,10 @@ class OAIES:
         return self._population.denormalise(np.array([self._parent_norm]))[0]
 
     @property
-    def best_member(self) -> Tuple[float, np.ndarray]:
-        """Fetch the current best member and it's training fitness"""
-        return (self._parent_fit, self.parent)
+    def best_member(self):
+        """Fetch the current best solution and it's training fitness"""
+        return self.history.best
     
-    @property
-    def evals(self) -> int:
-        """The number of evaluations (i.e., number of computations)"""
-        return self._number_evals
     #
 
     def __init__(
@@ -139,13 +151,7 @@ class OAIES:
         self._constraint_handle = constraint_handle
         self._number_evals = 0  # number of training evaluations
 
-        self.history = {}
-        self.history['best_fits'] = []
-        self.history['best_solutions'] = []
-        self.history['num_evals'] = []
-        self.history['trial_mean'] = []
-        self.history['trial_std'] = []
-        self.history['ga'] = []
+        self.history = History()
 
         return
 
@@ -207,8 +213,7 @@ class OAIES:
             self._toggle = 1
             _trial = self.population.denormalise(trial_pop)
 
-        self.history['trial_mean'].append(np.mean(_trial, axis=0))
-        self.history['trial_std'].append(np.std(_trial, axis=0))
+        self.history.append_trial(_trial)
         return _trial
 
     #
@@ -255,7 +260,7 @@ class OAIES:
             self._parent_norm = np.copy(trials_norm[np.argmin(fitnesses)])
 
             self._parent_fit = np.min(fitnesses) 
-            self.history['ga'].append(np.full(np.shape(self._parent_norm), np.nan))
+            self.history.append_ga(np.full(np.shape(self._parent_norm), np.nan))
 
         else:
             
@@ -266,24 +271,17 @@ class OAIES:
             # parent member to perform GD on
             theta = np.copy(self._parent_norm)  
 
-            # std = 1e-8
-            # R = -np.array(fitnesses)
-            # if np.std(R) > 0:
-            #     std = np.std(R)
-            # A = (R - np.mean(R)) / std
-
-            # # # Grad Estimate
-            # g = 1/(self.population.size*self._sigma) * np.dot(trials_norm.T, A)
-
             std = 1e-8
             R = -np.array(fitnesses)
             if np.std(R) > 0:
                 std = np.std(R)
             A = (R - np.mean(R)) / std
 
-            # mutant = self._parent_norm + self._sigma*N[j]
-            _epsilon = (trials_norm - self._parent_norm)/self._sigma
-            # trial_perterbations = trials_norm - self._parent_norm
+            # # Recall: mutant = self._parent_norm + self._sigma*N[j]
+            # _epsilon = trials_norm # use trials
+            # _epsilon = trials_norm - self._parent_norm # use  trial_perterbations            
+            _epsilon = (trials_norm - self._parent_norm)/self._sigma # use pertubations only
+            
 
 
             # # Grad Estimate
@@ -321,7 +319,7 @@ class OAIES:
             # Update from new grad step
             theta = theta + ga
 
-            self.history['ga'].append(ga.astype(float))
+            self.history.append_ga(ga.astype(float))
             # logging.info(f"\n[OAIES] - ga (step size): {np.around(ga.astype(float), decimals=7)}")
             theta = np.around(theta.astype(float), decimals=8)
             theta, _ = handle_bound_violation(theta, handle='clip')
@@ -330,7 +328,7 @@ class OAIES:
             # exit()
         
         self._number_evals += len(trials)
-        self.history['num_evals'].append(self._number_evals)
+        self.history.append_evals(self._number_evals)
 
         self._toggle = 0
         self._toggle_parent = 1
@@ -348,8 +346,10 @@ class OAIES:
 
         self._parent_fit = parent_fit
 
-        self.history['best_fits'].append(self._parent_fit)
-        self.history['best_solutions'].append(self.parent)
+        self.history.append_parent(
+            self.parent,
+            self._parent_fit,
+        )
 
         self._toggle_parent = 0
         return

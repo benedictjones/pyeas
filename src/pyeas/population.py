@@ -1,36 +1,29 @@
 import numpy as np
-from typing import Optional, Union, Mapping, Literal, TypedDict, Tuple, List
+from typing import Optional, Union, Mapping, Literal, TypedDict, Tuple, List, Any
 import logging
-from dataclasses import dataclass
+from pydantic import BaseModel, Field, field_validator
 import numbers 
 import copy 
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Genes:
+class Genes(BaseModel):
     """
     Define a group of genes which all have the same bounds.
     """
-    bounds: Tuple[numbers.Real, numbers.Real]
-    number: int
+    bounds: Tuple[float, float] = Field(description="Lower and upper bounds")
+    number: int = Field(description="Number of genes of this type in a single group")
 
-    def __post_init__(self):
-        """
-        Perform type check on the gene(s) properties.
-        """
-        if (
-            isinstance(self.bounds, tuple) is False
-            or len(self.bounds) != 2
-            or isinstance(self.bounds[0], numbers.Real) is False 
-            or isinstance(self.bounds[1], numbers.Real) is False 
-        ):
-            raise TypeError(f"Bounds must be a tuple of two floats! Not: {self.bounds}")
+    @field_validator('bounds', mode='after')
+    @classmethod
+    def ensure_bounds(cls, value: Any) -> any:
+        lower, upper = value
+        if upper < lower:
+            raise ValueError(f"Lower bound must be less than upper bound!")
+        return value
 
-        if isinstance(self.number, int) is False:
-            raise TypeError(f"Number of genes with the bounds (in this grouping) must be an integer! Not: {self.bounds}")
-        
+
 
 class Population:
     """ 
@@ -295,7 +288,7 @@ class Population:
         population_denomalised = self.bounds[:,0] + population*abs(self.bounds[:,1]-self.bounds[:,0])
         population_denomalised = np.around(
             population_denomalised.astype(np.float64), 
-            decimals=5,
+            decimals=6,
         )
         
         return population_denomalised

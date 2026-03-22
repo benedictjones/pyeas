@@ -1,13 +1,4 @@
 import numpy as np 
-# from typing import Annotated
-# from dataclasses import dataclass
-
-# @dataclass
-# class ValueRange:
-#     """ Used to specify [custom float range typing int](https://stackoverflow.com/questions/66451253/is-there-a-way-to-specify-a-range-of-valid-values-for-a-function-argument-with-t)"""
-#     min: float
-#     max: float
-
 
 
 def polynomial_order_2(
@@ -120,12 +111,12 @@ def hc6(
     
     Domain: [-3,3],[-2,2]             
     """
-    # ⚠️ Check if ANY element in the x1 array is outside [-3, 3] ⚠️
+    #  Check if ANY element in the x1 array is outside [-3, 3] 
     if np.any(x1 < -3) or np.any(x1 > 3):
         # We can't use an f-string to show the whole array, so we summarize
         raise ValueError(f"One or more x1 values exceed limits of [-3, 3]. Min: {x1.min()}, Max: {x1.max()}")
 
-    # ⚠️ Check if ANY element in the x2 array is outside [-2, 2] ⚠️
+    #  Check if ANY element in the x2 array is outside [-2, 2] 
     if np.any(x2 < -2) or np.any(x2 > 2):
         raise ValueError(f"One or more x2 values exceed limits of [-2, 2]. Min: {x2.min()}, Max: {x2.max()}")
     

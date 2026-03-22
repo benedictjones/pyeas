@@ -3,13 +3,18 @@ import copy
 from typing import Optional, List, Union, Dict, Any, Literal, Tuple
 import time
 import logging 
+from pydantic import BaseModel
 
 from pyeas.population import Population
 from pyeas.utils.boundary import handle_bound_violation
+from pyeas.utils.tracking import HistoryEvals, HistoryTrials, HistoryBestParent, Solution
 
 logger = logging.getLogger(__name__)
 
 
+class History(HistoryEvals, HistoryTrials, HistoryBestParent, BaseModel):
+    """Data class to store DE results history"""
+    a:Optional[int] = None
 
 class DE:
     """Differential Evolution (DE) stochastic optimizer class with ask-and-tell interface.
@@ -28,7 +33,7 @@ class DE:
     def generation(self) -> int:
         """Generation number which is monotonically incremented
         when multi-variate gaussian distribution is updated."""
-        return len(self.history['best_fits'])
+        return self.history.generation
     
     @property
     def population(self):
@@ -50,17 +55,12 @@ class DE:
     @property
     def best_member(self) -> Tuple[float, np.ndarray]:
         """Fetch the current best member and it's training fitness"""
-        fit = self._pop_fits[self._best_idx]
-        member = self.population.population[self._best_idx]
-        return (fit, member)
-    
-    @property
-    def evals(self) -> int:
-        """The number of evaluations (i.e., number of computations)"""
-        return self._number_evals
+        return Solution(
+            member=self.population.population[self._best_idx],
+            loss=self._pop_fits[self._best_idx],
+        )
     
     #
-    
 
     def __init__(
         self,
@@ -122,10 +122,7 @@ class DE:
         self._number_evals = 0  # number of training evaluations
         self._constraint_handle = constraint_handle
 
-        self.history = {}
-        self.history['best_fits'] = []
-        self.history['best_solutions'] = []
-        self.history['num_evals'] = []
+        self.history = History()
 
         return
 
@@ -143,12 +140,14 @@ class DE:
         # # Generate population
         if self._pop_fits is None:
             self._toggle = 1
-            return self.population.population
+            _trial = self.population.population
         else:
             trial_pop = self._sample_trial_pop(loop)  # generate trial population to evaluate
             self._toggle = 1
-            return self.population.denormalise(trial_pop)
-    
+            _trial = self.population.denormalise(trial_pop)
+
+        self.history.append_trial(_trial)
+        return _trial
 
     def _sample_trial_pop(self, loop:Optional[int]) -> np.ndarray:
         """Sample trial normalised population"""
@@ -182,8 +181,6 @@ class DE:
         trial_pop = np.around(trial_pop.astype(np.float64), decimals=5)
 
         return trial_pop
-
-    #
 
     def _mutate(
         self, 
@@ -355,13 +352,13 @@ class DE:
 
     def tell(
         self, 
-        fitnessess: list, 
+        fitnesses: list, 
         trials: Optional[np.ndarray] = None
     ) -> None:
         """Tell the object the fitness values of the whole trial population which has been valuated"""
 
         # # if condition returns False, AssertionError is raised:
-        if len(fitnessess) != self.population.size:
+        if len(fitnesses) != self.population.size:
             raise ValueError("Must tell with popsize-length solutions.")
         if self._toggle != 1:
             raise ValueError("Must first ask (i.e., fetch) & evaluate new trials.")
@@ -369,35 +366,37 @@ class DE:
 
         # # Retrieve fitness information and make population update
         if self._pop_fits is None:
-            self._pop_fits = np.array(fitnessess)  # assign the initi pop fits
-            self._best_idx = np.argmin(fitnessess)  # assign the best initi pop index
+            self._pop_fits = np.array(fitnesses)  # assign the initi pop fits
+            self._best_idx = np.argmin(fitnesses)  # assign the best initi pop index
             
         else:
             # evaluate trial population to evaluate
             # # Compare the children/trial genomes to the parent/target
             new_pop = np.copy(self.population.population_raw)
             new_pop_fits = np.copy(self._pop_fits)
-            assert trials is not None, "To update the population, please tell me the fitnesses and trials used"
+            if trials is None:
+                raise ValueError("To update the population, please tell me the fitnesses and trials used")
             trials = self.population.normalise(trials)
-            old_best = self.best_member[0]
+            old_pop_best_fit = self.best_member.loss
 
 
             for j in range(self.population.size):
-                #print("\ncompare fi", j, "fi=", fitnessess[j], "to previous fitness=", self._pop_fits[j], " prev best:", old_best)
+                #print("\ncompare fi", j, "fi=", fitnesses[j], "to previous fitness=", self._pop_fits[j], " prev best:", old_pop_best_fit)
 
                 # # find best index
-                if fitnessess[j] <= new_pop_fits[self._best_idx]:
+                if fitnesses[j] <= new_pop_fits[self._best_idx]:
                     #print("  best update:", j, " prev best:", self._pop_fits[self._best_idx])
                     self._best_idx = j  
 
                 # # whether to keep parent or child/trial
-                if fitnessess[j] <= self._pop_fits[j]:  
+                if fitnesses[j] <= self._pop_fits[j]:  
                     #print("  pop update:", j)
                     new_pop[j] = trials[j] 
-                    new_pop_fits[j] = fitnessess[j]
+                    new_pop_fits[j] = fitnesses[j]
 
             # # Quick Check 
-            assert old_best >= new_pop_fits[self._best_idx], "wrong! old best: %f, new best: %f, best idx: %d" % (old_best, new_pop_fits[self._best_idx], self._best_idx)
+            if old_pop_best_fit < new_pop_fits[self._best_idx]:
+                raise ValueError("wrong! old best: %f, new best: %f, best idx: %d" % (old_pop_best_fit, new_pop_fits[self._best_idx], self._best_idx))
             
             # # Assign updated population as the parent 
             self.population.population_raw = new_pop
@@ -405,9 +404,11 @@ class DE:
 
         self._number_evals += len(trials)
 
-        self.history['best_fits'].append(self.best_member[0])
-        self.history['best_solutions'].append(self.best_member[1])
-        self.history['num_evals'].append(self._number_evals)
+        self.history.append_parent(
+            self.best_member.member,
+            self.best_member.loss,
+        )
+        self.history.append_evals(self._number_evals)
 
         self._toggle = 0
         return
